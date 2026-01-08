@@ -120,6 +120,9 @@ def get_user_name_from_response(data):
                 name_parts = re.findall(r'[A-Z][a-z]*', user_id)
                 if name_parts:
                     return ' '.join(name_parts)
+                else:
+                    # ছোটহাতের নাম হলে প্রথম অক্ষর ক্যাপিটাল করে
+                    return user_id.capitalize()
         
         return None
     except:
@@ -167,9 +170,9 @@ def attempt_login(user_id, pw):
                 if not real_name:
                     real_name = get_user_name_from_response({'userId': uid})
                 
-                # তবুও না পেলে ডিফল্ট মেসেজ
+                # তবুও না পেলে শুধু নামের অংশ দেখাবে
                 if not real_name:
-                    real_name = f"User ({uid[:10]}...)" if len(uid) > 10 else f"User ({uid})"
+                    real_name = uid if len(uid) <= 15 else uid[:12] + "..."
 
                 with lock: successful_users.add(user_id)
                 
@@ -190,8 +193,8 @@ def attempt_login(user_id, pw):
                         earn = '50 BDT'
                         color = G
 
-                # এখন শুধু আসল নাম প্রিন্ট করবে
-                print(f'{BOLD}{color} Name: {real_name} | Profile : {status} | Earned : {earn} {D}')
+                # Name: রিমুভ করে শুধু নাম প্রিন্ট করবে
+                print(f'{BOLD}{color} {real_name} | Profile : {status} | Earned : {earn} {D}')
 
                 with open(filename, 'a', encoding='utf-8') as f:
                     f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level} | Name: {real_name}\n')
