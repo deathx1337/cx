@@ -196,12 +196,13 @@ def attempt_login(user_id, pw):
                 # Name: রিমুভ করে শুধু নাম প্রিন্ট করবে
                 print(f'{BOLD}{color} {real_name} | Profile : {status} | Earned : {earn} {D}')
 
+                # ফাইলে শুধু UID, Password, Balance, Rank সেভ করবে (নাম ছাড়া)
                 with open(filename, 'a', encoding='utf-8') as f:
-                    f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level} | Name: {real_name}\n')
+                    f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level}\n')
                     
                 if bal_val > 0:
                     with open('.balances.txt', 'a', encoding='utf-8') as f:
-                        f.write(f'{uid} | {pw} | {balance} | {level} | {real_name}\n')
+                        f.write(f'{uid} | {pw} | {balance} | {level}\n')
 
             elif res.get('status') == 'S0001': 
                 time.sleep(10)
